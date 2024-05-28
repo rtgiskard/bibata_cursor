@@ -3,20 +3,15 @@ name = 'Bibata Right Cursor'
 comment = 'Bibata is open source, compact, and material designed cursor set.'
 website = 'https://www.bibata.live'
 
-[config]
-bitmaps_dir = '' # This config will assigned with `ctgen -d <path>`
-out_dir = 'themes'
-platforms = ['x11', 'windows']
-
-[cursors]
-[cursors.fallback_settings]
-x11_sizes = [16, 20, 22, 24, 28, 32, 40, 48, 56, 64, 72, 80, 88, 96]
+[cursor_defaults]
+x11_sizes = [16, 20, 22, 24, 28, 32, 48, 64, 72, 84, 96]
 win_sizes = [24]
 x_hotspot = 128
 y_hotspot = 128
 x11_delay = 40
 win_delay = 1
 
+[cursors]
 [cursors.bd_double_arrow]
 png = 'bd_double_arrow.png'
 win_name = 'Dgn1'
