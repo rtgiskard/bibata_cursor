@@ -1,0 +1,6 @@
+poetry.lock
+__pycache__/
+
+out/
+svg/modern*/
+svg/original*/
