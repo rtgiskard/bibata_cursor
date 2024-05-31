@@ -5,6 +5,7 @@ import subprocess
 import tomllib
 import json
 import re
+import zipfile
 
 from typing import Any
 from collections.abc import Iterable
@@ -12,20 +13,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 logger = logging.getLogger()
-'''
-- workflow:
-    . xcursor: svg -> recolor -> png -> xcursor
-    . hyprcursor: svg -> recolor -> hyprcursor
-
-- tools:
-    . recolor: cbmp, sed
-    . xcursor: clickgen, xcursorgen
-
-- layout:
-    ~/.local/share/icons/myCursorTheme/manifest.hl
-
-    export HYPRCURSOR_THEME = myCursorTheme
-'''
 
 
 class Utils:
@@ -55,9 +42,14 @@ class Utils:
         for path in rootdir.iterdir():
             if path.is_file():
                 yield path
-
             elif path.is_dir() and depth_limit > 0:
                 yield from Utils.traverse_dir(path, depth_limit - 1)
+
+    @classmethod
+    def zip_dir(cls, cdir: Path, out: Path):
+        with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+            for item in cls.traverse_dir(cdir):
+                zipf.write(item, arcname=item.relative_to(cdir))
 
     @classmethod
     def svg_convert(cls, src: Path, dst: Path, width: int = 0, height: int = 0):
@@ -86,7 +78,7 @@ class Utils:
             svg_data = svg_data.replace(cmap['match'], cmap['replace'])
 
         if not dst.parent.is_dir():
-            dst.parent.mkdir(parents=True)
+            dst.parent.mkdir(parents=True, exist_ok=True)
 
         dst.write_text(svg_data)
 
@@ -94,8 +86,8 @@ class Utils:
 @dataclass
 class CursorRender:
     name: str
+    desc: str
     dir: str
-    out: str
     color_maps: list[dict[str, str]]
 
 
@@ -116,9 +108,28 @@ class HyprManifest:
 
     def write(self, cdir: str = ''):
         dirPath = cdir if cdir else self.name
-        Path(f'{dirPath}/{self.directory}').mkdir(parents=True)
-        with open(f'{dirPath}/manifest.hl', 'w') as f:
-            f.write(self.dumps())
+        Path(f'{dirPath}/{self.directory}').mkdir(parents=True, exist_ok=True)
+        Path(f'{dirPath}/manifest.hl').write_text(self.dumps())
+
+
+@dataclass
+class XManifest:
+    name: str
+    description: str
+    directory: str = 'cursors'
+
+    def dumps(self):
+        lines = []
+        lines.append('[Icon Theme]')
+        lines.append(f'Name={self.name}')
+        lines.append(f'Comment={self.description}')
+        lines.append('Inherits=hicolor')
+        return '\n'.join(lines)
+
+    def write(self, cdir: str = ''):
+        dirPath = cdir if cdir else self.name
+        Path(f'{dirPath}/{self.directory}').mkdir(parents=True, exist_ok=True)
+        Path(f'{dirPath}/index.theme').write_text(self.dumps())
 
 
 @dataclass
@@ -145,15 +156,33 @@ class CursorMeta:
         if self.sizes:
             lines.append('')
             for item in self.sizes:
-                lines.append(f'define_size = {', '.join(item)}')
+                lines.append('define_size = {}'.format(', '.join([str(x) for x in item])))
 
         return '\n'.join(lines)
 
-    def write(self, cdir: str = ''):
+    def dumpsX(self):
+        lines = []
+        for item in self.sizes:
+            size, dst = item[0], item[1]
+            delay = item[2] if len(item) == 3 else 0
+            hotX = int(size * self.hotX)
+            hotY = int(size * self.hotY)
+
+            line = f'{size} {hotX} {hotY} {dst}'
+            if delay > 0:
+                line += f' {delay}'
+            lines.append(line)
+
+        return '\n'.join(lines)
+
+    def write(self, cdir: str = '', fmt: str = 'hypr'):
         dirPath = cdir if cdir else self.name
-        Path(dirPath).mkdir()
-        with open(f'{dirPath}/meta.hl', 'w') as f:
-            f.write(self.dumps())
+        Path(dirPath).mkdir(exist_ok=True)
+
+        if fmt == 'hypr':
+            Path(f'{dirPath}/meta.hl').write_text(self.dumps())
+        elif fmt == 'x11':
+            Path(f'{dirPath}/meta.x11').write_text(self.dumpsX())
 
     def render(self, render: CursorRender, cdir: str = ''):
         dirPath = cdir if cdir else self.name
@@ -169,6 +198,22 @@ class CursorMeta:
                 tmp.unlink()
             else:
                 logger.warn(f'cursor `{self.name}`: undefined render suffix: {dst}')
+
+    def post_process(self, cdir: str = '', fmt: str = 'hypr'):
+        dirPath = cdir if cdir else self.name
+        if fmt == 'hypr':
+            Utils.zip_dir(Path(dirPath), Path(dirPath + '.hlc'))
+        elif fmt == 'x11':
+            Utils.run(['xcursorgen', '-p', dirPath, f'{dirPath}/meta.x11', f'{dirPath}.xcur'],
+                      True,
+                      stdout=subprocess.DEVNULL)
+
+    def post_cleanup(self, cdir: str = '', fmt: str = ''):
+        dirPath = cdir if cdir else self.name
+
+        Utils.run(['rm', '-rf', dirPath], True)
+        if fmt == 'x11':
+            Path(f'{dirPath}.xcur').rename(dirPath)
 
     def scan_size_and_render(self,
                              refDir: str,
@@ -198,9 +243,9 @@ class CursorMeta:
                 dst += f'.{fmt}'
 
                 if len(renderRef) > 1 and delay > 0:
-                    self.sizes.append((str(size), dst, str(delay)))
+                    self.sizes.append((size, dst, delay))
                 else:
-                    self.sizes.append((str(size), dst))
+                    self.sizes.append((size, dst))
 
                 self.renders.append((src, dst, size))
 
@@ -210,7 +255,8 @@ class CursorBuilder:
     config: dict[str, dict]       # left cursor
     config_right: dict[str, dict] # right cursor
 
-    outDir: str = 'hypr.out'
+    cleanup: bool = True
+    outDir: str = 'out'
     renderList: list[str] = [
         'Bibata-Modern-Classic',
         'Bibata-Modern-Ice',
@@ -240,7 +286,11 @@ class CursorBuilder:
                 continue
 
             spec = self.render[name]
-            yield CursorRender(name, spec['dir'], spec['out'], spec['colors'])
+            yield CursorRender(name, spec['desc'], spec['dir'], spec['colors'])
+
+    def ensure_render_source(self, render: CursorRender):
+        if not Path(render.dir).exists():
+            Utils.run('cd svg && ./link.py', True)
 
     def get_cursors(self, render: CursorRender, fmt: str = 'svg') -> Iterable[CursorMeta]:
         cursor_config = self.get_cursor_config(render.name.endswith('-Right'))
@@ -270,33 +320,35 @@ class CursorBuilder:
             cursor.scan_size_and_render(render.dir, x11_sizes, x11_delay, fmt)
             yield cursor
 
-    def gen_hyprcursor(self, render: CursorRender):
-        logger.info(f'== {render.name}')
+    def gen_cursor(self, render: CursorRender, fmt: str = 'hypr'):
+        logger.info(f'== {render.name} ({fmt})')
 
-        desc = 'Bibata HyprCursor'
-        if render.name.endswith('-Right'):
-            desc += ' Right'
+        Manifest = HyprManifest if fmt == 'hypr' else XManifest
+        cursor_fmt = 'svg' if fmt == 'hypr' else 'png'
 
         cThemeDir = f'{self.outDir}/{render.name}'
-        manifest = HyprManifest(name=render.name, description=desc)
+        manifest = Manifest(name=render.name, description=render.desc)
         manifest.write(cThemeDir)
 
-        for cursor in self.get_cursors(render):
-            cdir = f'{cThemeDir}/{manifest.directory}/{cursor.name}'
+        for cursor in self.get_cursors(render, cursor_fmt):
             logger.info(f'- {render.name}/{cursor.name} ..')
-            cursor.write(cdir)
+            cdir = f'{cThemeDir}/{manifest.directory}/{cursor.name}'
+
+            cursor.write(cdir, fmt)
             cursor.render(render, cdir)
+            cursor.post_process(cdir, fmt)
+            if self.cleanup:
+                cursor.post_cleanup(cdir, fmt)
 
-        logger.info('* gen compressed cursor theme ..')
-        Utils.run(['hyprcursor-util', '-c', cThemeDir], True, stdout=subprocess.DEVNULL)
-
-    def build(self):
+    def build(self, fmt: str = 'hypr'):
         for render in self.get_renders():
-            self.gen_hyprcursor(render)
+            self.ensure_render_source(render)
+            self.gen_cursor(render, fmt)
 
 
 if __name__ == '__main__':
     Utils.config_logging()
 
     builder = CursorBuilder()
-    builder.build()
+    builder.build('hypr')
+    builder.build('x11')
