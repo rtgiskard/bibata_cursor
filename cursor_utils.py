@@ -14,11 +14,32 @@ from pathlib import Path
 
 logger = logging.getLogger()
 
+XCURSOR_SET_SPEC = [
+    'alias', 'all-scroll', 'cell', 'col-resize', 'context-menu', 'copy', 'crosshair',
+    'default', 'default', 'e-resize', 'ew-resize', 'help', 'n-resize', 'ne-resize',
+    'nesw-resize', 'no-drop', 'not-allowed', 'ns-resize', 'nw-resize', 'nwse-resize',
+    'pointer', 'progress', 'row-resize', 's-resize', 'se-resize', 'sw-resize', 'text',
+    'up-arrow', 'vertical-text', 'w-resize', 'wait'
+]
+XCURSOR_SET_ADW = [
+    'alias', 'all-scroll', 'arrow', 'bd_double_arrow', 'bottom_left_corner',
+    'bottom_right_corner', 'bottom_side', 'cell', 'col-resize', 'context-menu', 'copy',
+    'cross', 'cross_reverse', 'crosshair', 'default', 'diamond_cross', 'dnd-move', 'e-resize',
+    'ew-resize', 'fd_double_arrow', 'fleur', 'grab', 'grabbing', 'hand1', 'hand2', 'help',
+    'left_ptr', 'left_side', 'move', 'n-resize', 'ne-resize', 'nesw-resize', 'no-drop',
+    'not-allowed', 'ns-resize', 'nw-resize', 'nwse-resize', 'pointer', 'progress',
+    'question_arrow', 'right_side', 'row-resize', 's-resize', 'sb_h_double_arrow',
+    'sb_v_double_arrow', 'se-resize', 'sw-resize', 'tcross', 'text', 'top_left_arrow',
+    'top_left_corner', 'top_right_corner', 'top_side', 'vertical-text', 'w-resize', 'wait',
+    'watch', 'xterm', 'zoom-in', 'zoom-out'
+]
+XCURSOR_SET_LINK = XCURSOR_SET_ADW
+
 
 class Utils:
 
     @classmethod
-    def config_logging(cls, loglevel: int = logging.INFO):
+    def config_logging(cls, loglevel: int = logging.DEBUG):
         console_handler = logging.StreamHandler()
         console_handler.setLevel(loglevel)
         console_handler.setFormatter(
@@ -208,18 +229,25 @@ class CursorMeta:
                       True,
                       stdout=subprocess.DEVNULL)
 
-    def post_cleanup(self, cdir: str = '', fmt: str = ''):
+    def post_setup(self, cdir: str = '', fmt: str = 'hypr'):
         dirPath = cdir if cdir else self.name
-
         Utils.run(['rm', '-rf', dirPath], True)
         if fmt == 'x11':
-            Path(f'{dirPath}.xcur').rename(dirPath)
+            path = Path(f'{dirPath}.xcur').rename(dirPath)
+            self.post_x11_symlink(str(path.parent))
+
+    def post_x11_symlink(self, cdir: str, link_all: bool = False):
+        dirPath = cdir if cdir else '.'
+        for name in self.overrides:
+            if link_all or name in XCURSOR_SET_LINK:
+                Path(f'{dirPath}/{name}').symlink_to(self.name)
+                logger.debug(f'symlink: {name} -> {self.name}')
 
     def scan_size_and_render(self,
                              refDir: str,
                              sizes: list[int],
                              delay: int = 0,
-                             fmt: str = 'svg'):
+                             suffix: str = 'svg'):
         self.sizes.clear()
         self.renders.clear()
 
@@ -231,7 +259,7 @@ class CursorMeta:
         if len(renderRef) == 0:
             logger.warn(f'cursor `{self.name}`: no renderRef')
 
-        if fmt == 'svg':
+        if suffix == 'svg':
             sizes = [0] # for hyprcursor with svg, size is ignored
 
         for size in sizes:
@@ -240,7 +268,7 @@ class CursorMeta:
                 dst = basename
                 if len(renderRef) > 1:
                     dst += f'_{seq:02}'
-                dst += f'.{fmt}'
+                dst += f'.{suffix}'
 
                 if len(renderRef) > 1 and delay > 0:
                     self.sizes.append((size, dst, delay))
@@ -251,11 +279,11 @@ class CursorMeta:
 
 
 class CursorBuilder:
-    render: dict[str, dict]       # cursor theme, color map
+    theme: dict[str, dict]        # cursor theme, color map
     config: dict[str, dict]       # left cursor
     config_right: dict[str, dict] # right cursor
 
-    cleanup: bool = True
+    doSetup: bool = True
     outDir: str = 'out'
     renderList: list[str] = [
         'Bibata-Modern-Classic',
@@ -274,7 +302,7 @@ class CursorBuilder:
             self.config_right = tomllib.load(f)
 
         with open('render.json', 'r') as f:
-            self.render = json.load(f)
+            self.theme = json.load(f)
 
     def get_cursor_config(self, right: bool = False):
         config = self.config_right if right else self.config
@@ -282,17 +310,17 @@ class CursorBuilder:
 
     def get_renders(self) -> Iterable[CursorRender]:
         for name in self.renderList:
-            if name not in self.render:
+            if name not in self.theme:
                 continue
 
-            spec = self.render[name]
+            spec = self.theme[name]
+
+            if not Path(spec['dir']).exists():
+                Utils.run('cd svg && ./link.py', True)
+
             yield CursorRender(name, spec['desc'], spec['dir'], spec['colors'])
 
-    def ensure_render_source(self, render: CursorRender):
-        if not Path(render.dir).exists():
-            Utils.run('cd svg && ./link.py', True)
-
-    def get_cursors(self, render: CursorRender, fmt: str = 'svg') -> Iterable[CursorMeta]:
+    def get_cursors(self, render: CursorRender, fmt: str = 'hypr') -> Iterable[CursorMeta]:
         cursor_config = self.get_cursor_config(render.name.endswith('-Right'))
 
         fallback = cursor_config['fallback_settings']
@@ -317,32 +345,31 @@ class CursorBuilder:
             x11_delay = getValue(params, 'x11_delay', 0)
 
             cursor = CursorMeta(name=x11_name, hotX=hotX, hotY=hotY, overrides=x11_symlinks)
-            cursor.scan_size_and_render(render.dir, x11_sizes, x11_delay, fmt)
+            cursor.scan_size_and_render(render.dir, x11_sizes, x11_delay,
+                                        'svg' if fmt == 'hypr' else 'png')
             yield cursor
 
     def gen_cursor(self, render: CursorRender, fmt: str = 'hypr'):
         logger.info(f'== {render.name} ({fmt})')
 
         Manifest = HyprManifest if fmt == 'hypr' else XManifest
-        cursor_fmt = 'svg' if fmt == 'hypr' else 'png'
 
         cThemeDir = f'{self.outDir}/{render.name}'
         manifest = Manifest(name=render.name, description=render.desc)
         manifest.write(cThemeDir)
 
-        for cursor in self.get_cursors(render, cursor_fmt):
+        for cursor in self.get_cursors(render, fmt):
             logger.info(f'- {render.name}/{cursor.name} ..')
             cdir = f'{cThemeDir}/{manifest.directory}/{cursor.name}'
 
             cursor.write(cdir, fmt)
             cursor.render(render, cdir)
             cursor.post_process(cdir, fmt)
-            if self.cleanup:
-                cursor.post_cleanup(cdir, fmt)
+            if self.doSetup:
+                cursor.post_setup(cdir, fmt)
 
     def build(self, fmt: str = 'hypr'):
         for render in self.get_renders():
-            self.ensure_render_source(render)
             self.gen_cursor(render, fmt)
 
 
