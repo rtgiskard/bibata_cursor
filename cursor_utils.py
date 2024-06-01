@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import sys
+import argparse
 import logging
 import subprocess
 import tomllib
@@ -14,26 +16,35 @@ from pathlib import Path
 
 logger = logging.getLogger()
 
-XCURSOR_SET_SPEC = [
-    'alias', 'all-scroll', 'cell', 'col-resize', 'context-menu', 'copy', 'crosshair',
-    'default', 'default', 'e-resize', 'ew-resize', 'help', 'n-resize', 'ne-resize',
-    'nesw-resize', 'no-drop', 'not-allowed', 'ns-resize', 'nw-resize', 'nwse-resize',
-    'pointer', 'progress', 'row-resize', 's-resize', 'se-resize', 'sw-resize', 'text',
-    'up-arrow', 'vertical-text', 'w-resize', 'wait'
+DEFAULT_THEMES = [
+    'Bibata-Modern-Classic',
+    'Bibata-Modern-Ice',
+    'Bibata-Modern-Amber',
 ]
-XCURSOR_SET_ADW = [
-    'alias', 'all-scroll', 'arrow', 'bd_double_arrow', 'bottom_left_corner',
-    'bottom_right_corner', 'bottom_side', 'cell', 'col-resize', 'context-menu', 'copy',
-    'cross', 'cross_reverse', 'crosshair', 'default', 'diamond_cross', 'dnd-move', 'e-resize',
-    'ew-resize', 'fd_double_arrow', 'fleur', 'grab', 'grabbing', 'hand1', 'hand2', 'help',
-    'left_ptr', 'left_side', 'move', 'n-resize', 'ne-resize', 'nesw-resize', 'no-drop',
-    'not-allowed', 'ns-resize', 'nw-resize', 'nwse-resize', 'pointer', 'progress',
-    'question_arrow', 'right_side', 'row-resize', 's-resize', 'sb_h_double_arrow',
-    'sb_v_double_arrow', 'se-resize', 'sw-resize', 'tcross', 'text', 'top_left_arrow',
-    'top_left_corner', 'top_right_corner', 'top_side', 'vertical-text', 'w-resize', 'wait',
-    'watch', 'xterm', 'zoom-in', 'zoom-out'
-]
-XCURSOR_SET_LINK = XCURSOR_SET_ADW
+
+XCURSOR_LINK_MAP = {
+    'none': [],
+    'all': [],
+    'spec': [
+        'alias', 'all-scroll', 'cell', 'col-resize', 'context-menu', 'copy', 'crosshair',
+        'default', 'default', 'e-resize', 'ew-resize', 'help', 'n-resize', 'ne-resize',
+        'nesw-resize', 'no-drop', 'not-allowed', 'ns-resize', 'nw-resize', 'nwse-resize',
+        'pointer', 'progress', 'row-resize', 's-resize', 'se-resize', 'sw-resize', 'text',
+        'up-arrow', 'vertical-text', 'w-resize', 'wait'
+    ],
+    'adwaita': [
+        'alias', 'all-scroll', 'arrow', 'bd_double_arrow', 'bottom_left_corner',
+        'bottom_right_corner', 'bottom_side', 'cell', 'col-resize', 'context-menu', 'copy',
+        'cross', 'cross_reverse', 'crosshair', 'default', 'diamond_cross', 'dnd-move',
+        'e-resize', 'ew-resize', 'fd_double_arrow', 'fleur', 'grab', 'grabbing', 'hand1',
+        'hand2', 'help', 'left_ptr', 'left_side', 'move', 'n-resize', 'ne-resize',
+        'nesw-resize', 'no-drop', 'not-allowed', 'ns-resize', 'nw-resize', 'nwse-resize',
+        'pointer', 'progress', 'question_arrow', 'right_side', 'row-resize', 's-resize',
+        'sb_h_double_arrow', 'sb_v_double_arrow', 'se-resize', 'sw-resize', 'tcross', 'text',
+        'top_left_arrow', 'top_left_corner', 'top_right_corner', 'top_side', 'vertical-text',
+        'w-resize', 'wait', 'watch', 'xterm', 'zoom-in', 'zoom-out'
+    ],
+}
 
 
 class Utils:
@@ -229,17 +240,17 @@ class CursorMeta:
                       True,
                       stdout=subprocess.DEVNULL)
 
-    def post_setup(self, cdir: str = '', fmt: str = 'hypr'):
+    def post_setup(self, cdir: str = '', fmt: str = 'hypr', link: str = 'none'):
         dirPath = cdir if cdir else self.name
         Utils.run(['rm', '-rf', dirPath], True)
         if fmt == 'x11':
             path = Path(f'{dirPath}.xcur').rename(dirPath)
-            self.post_x11_symlink(str(path.parent))
+            self.post_x11_symlink(str(path.parent), link)
 
-    def post_x11_symlink(self, cdir: str, link_all: bool = False):
+    def post_x11_symlink(self, cdir: str, link: str):
         dirPath = cdir if cdir else '.'
         for name in self.overrides:
-            if link_all or name in XCURSOR_SET_LINK:
+            if link == 'all' or name in XCURSOR_LINK_MAP[link]:
                 Path(f'{dirPath}/{name}').symlink_to(self.name)
                 logger.debug(f'symlink: {name} -> {self.name}')
 
@@ -284,15 +295,36 @@ class CursorBuilder:
     config_right: dict[str, dict] # right cursor
 
     doSetup: bool = True
+    renderList: list[str] = DEFAULT_THEMES
+    x11Symlink: str = 'none'
     outDir: str = 'out'
-    renderList: list[str] = [
-        'Bibata-Modern-Classic',
-        'Bibata-Modern-Ice',
-        'Bibata-Modern-Amber',
-    ]
 
     def __init__(self) -> None:
         self.load_config()
+
+    def parse_args(self, argv: list[str]) -> argparse.Namespace:
+        parser = argparse.ArgumentParser(
+            prog='cursor_utils',
+            description='utils to create hypr/X cursor for bibata cursor themes')
+
+        parser.add_argument('--no-setup', help='skip post setup', action='store_true')
+        parser.add_argument('--hypr', help='build hypr cursor theme', action='store_true')
+        parser.add_argument('--x11', help='build x11 cursor theme', action='store_true')
+
+        parser.add_argument('--x11-symlink',
+                            help='symlink policy for x11 cursor theme',
+                            choices=XCURSOR_LINK_MAP.keys(),
+                            default='adwaita')
+        parser.add_argument('--theme',
+                            help='which theme to build, ref: `render.json`',
+                            default='')
+        parser.add_argument('--out-dir', help='output dir', default='./out')
+        parser.add_argument('--log-level',
+                            help='change log level',
+                            choices=['error', 'warn', 'info', 'debug'],
+                            default='info')
+
+        return parser.parse_args(argv)
 
     def load_config(self):
         with open('build.toml', 'rb') as f:
@@ -304,9 +336,9 @@ class CursorBuilder:
         with open('render.json', 'r') as f:
             self.theme = json.load(f)
 
-    def get_cursor_config(self, right: bool = False):
+    def get_cursor_config(self, right: bool = False) -> tuple[dict, dict]:
         config = self.config_right if right else self.config
-        return config['cursors']
+        return (config['cursors'], config['cursor_defaults'])
 
     def get_renders(self) -> Iterable[CursorRender]:
         for name in self.renderList:
@@ -321,16 +353,15 @@ class CursorBuilder:
             yield CursorRender(name, spec['desc'], spec['dir'], spec['colors'])
 
     def get_cursors(self, render: CursorRender, fmt: str = 'hypr') -> Iterable[CursorMeta]:
-        cursor_config = self.get_cursor_config(render.name.endswith('-Right'))
+        cursor_configs, fallback = self.get_cursor_config(render.name.endswith('-Right'))
 
-        fallback = cursor_config['fallback_settings']
         if 'x11_name' in fallback:
             logger.warn('fallback has x11_name: {}'.format(fallback.pop('x11_name')))
 
         def getValue(params: dict, key: str, default: Any):
             return params[key] if key in params else fallback.get(key, default)
 
-        for name, params in cursor_config.items():
+        for name, params in cursor_configs.items():
             x11_name = params.get('x11_name', '')
 
             if not x11_name:
@@ -366,16 +397,42 @@ class CursorBuilder:
             cursor.render(render, cdir)
             cursor.post_process(cdir, fmt)
             if self.doSetup:
-                cursor.post_setup(cdir, fmt)
+                cursor.post_setup(cdir, fmt, self.x11Symlink)
 
     def build(self, fmt: str = 'hypr'):
         for render in self.get_renders():
             self.gen_cursor(render, fmt)
 
+    def run(self, argv: list[str]):
+        try:
+            args = self.parse_args(argv)
+        except Exception as e:
+            print(f'** failed to parse args: {e}')
+            return
+
+        Utils.config_logging(logging.getLevelName(args.log_level.upper()))
+
+        self.doSetup = not args.no_setup
+        self.x11Symlink = args.x11_symlink
+        self.outDir = args.out_dir
+
+        if Path(self.outDir).exists():
+            logger.error(f'output dir `{self.outDir}` already exist, abort')
+            return
+
+        if args.theme:
+            self.renderList = [args.theme]
+
+        if not args.hypr and not args.x11:
+            logger.error('requre at least one of `hypr` or `x11`')
+            return
+
+        if args.hypr:
+            self.build('hypr')
+        if args.x11:
+            self.build('x11')
+
 
 if __name__ == '__main__':
-    Utils.config_logging()
-
     builder = CursorBuilder()
-    builder.build('hypr')
-    builder.build('x11')
+    builder.run(sys.argv[1:] or ['-h'])
