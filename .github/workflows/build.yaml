@@ -38,24 +38,24 @@ jobs:
 
       - name: Python dependences
         run: |
-          pipx install poetry pytest
-          poetry install
+          pipx install uv pytest
+          uv sync
 
       - name: Check with linter and formatter
         run: |
           ruff check
-          yapf -d -r .
+          yapf -d -r -e .venv/ .
 
       - name: Build hyprcursor
         run: |
-          poetry run ./cursor_utils.py --hypr --log-level debug --out-dir out.hypr
+          uv run ./cursor_utils.py --hypr --log-level debug --out-dir out.hypr
           cd out.hypr && for x in *; do \
               tar -acf ../"${x}.hypr.tar.zst" "$x"; \
           done
 
       - name: Build Xcursor
         run: |
-          poetry run ./cursor_utils.py --x11 --log-level debug --out-dir out.x11
+          uv run ./cursor_utils.py --x11 --log-level debug --out-dir out.x11
           cd out.x11 && for x in *; do \
               tar -acf ../"${x}.x11.tar.zst" "$x"; \
           done
