@@ -336,13 +336,13 @@ class CursorBuilder:
         return parser.parse_args(argv)
 
     def load_config(self):
-        with open('build.toml', 'rb') as f:
+        with Path('build.toml').open('rb') as f:
             self.config = tomllib.load(f)
 
-        with open('build.right.toml', 'rb') as f:
+        with Path('build.right.toml').open('rb') as f:
             self.config_right = tomllib.load(f)
 
-        with open('render.json', 'r') as f:
+        with Path('render.json').open('rb') as f:
             self.theme = json.load(f)
 
     def get_cursor_config(self, *, right: bool = False) -> tuple[dict, dict]:
