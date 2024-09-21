@@ -32,7 +32,7 @@ jobs:
           pacman --noconfirm --noprogressbar -Syyu
           pacman --noconfirm --noprogressbar -Sy \
             xorg-xcursorgen librsvg \
-            ruff yapf python-pipx
+            ruff python-pipx
 
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -44,7 +44,7 @@ jobs:
       - name: Check with linter and formatter
         run: |
           ruff check
-          yapf -d -r -e .venv/ .
+          ruff format --check
 
       - name: Build hyprcursor
         run: |

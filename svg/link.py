@@ -20,33 +20,45 @@ def gen_symlinks(src_dirs: list[str], dst_dir: str) -> None:
 
 
 # Linking Bibata Modern
-gen_symlinks([
-    'groups/modern',
-    'groups/modern-arrow',
-    'groups/shared',
-    'groups/hand',
-], 'modern')
+gen_symlinks(
+    [
+        'groups/modern',
+        'groups/modern-arrow',
+        'groups/shared',
+        'groups/hand',
+    ],
+    'modern',
+)
 
 # Linking Bibata Modern Right
-gen_symlinks([
-    'groups/modern-right',
-    'groups/modern-arrow',
-    'groups/shared',
-    'groups/hand-right',
-], 'modern-right')
+gen_symlinks(
+    [
+        'groups/modern-right',
+        'groups/modern-arrow',
+        'groups/shared',
+        'groups/hand-right',
+    ],
+    'modern-right',
+)
 
 # Linking Bibata Original
-gen_symlinks([
-    'groups/original',
-    'groups/original-arrow',
-    'groups/shared',
-    'groups/hand',
-], 'original')
+gen_symlinks(
+    [
+        'groups/original',
+        'groups/original-arrow',
+        'groups/shared',
+        'groups/hand',
+    ],
+    'original',
+)
 
 # Linking Bibata Original Right
-gen_symlinks([
-    'groups/original-right',
-    'groups/original-arrow',
-    'groups/shared',
-    'groups/hand-right',
-], 'original-right')
+gen_symlinks(
+    [
+        'groups/original-right',
+        'groups/original-arrow',
+        'groups/shared',
+        'groups/hand-right',
+    ],
+    'original-right',
+)

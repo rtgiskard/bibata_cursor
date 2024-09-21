@@ -44,26 +44,28 @@ XCURSOR_LINK_MAP = {
         'top_left_arrow', 'top_left_corner', 'top_right_corner', 'top_side', 'vertical-text',
         'w-resize', 'wait', 'watch', 'xterm', 'zoom-in', 'zoom-out'
     ],
-}
+}  # fmt: skip
 
 
 class Utils:
-
     @classmethod
     def config_logging(cls, loglevel: int = logging.DEBUG):
         console_handler = logging.StreamHandler()
         console_handler.setLevel(loglevel)
         console_handler.setFormatter(
-            logging.Formatter(fmt='{asctime}.{msecs:03.0f} {levelname[0]}: {message}',
-                              style='{',
-                              datefmt='%H%M%S'))
+            logging.Formatter(
+                fmt='{asctime}.{msecs:03.0f} {levelname[0]}: {message}',
+                style='{',
+                datefmt='%H%M%S',
+            )
+        )
 
         logger = logging.getLogger()
         logger.setLevel(loglevel)
         logger.addHandler(console_handler)
 
     @classmethod
-    def run(cls, cmd: str | list[str], wait: bool = False, **kwargs) -> subprocess.Popen:
+    def run(cls, cmd: str | list[str], *, wait: bool = False, **kwargs) -> subprocess.Popen:
         p = subprocess.Popen(cmd, shell=isinstance(cmd, str), **kwargs)
         if p and wait:
             p.wait()
@@ -101,7 +103,7 @@ class Utils:
             cmd.extend(['-h', str(height)])
 
         cmd.extend(['-o', str(dst), str(src)])
-        cls.run(cmd, True)
+        cls.run(cmd, wait=True)
 
     @classmethod
     def svg_recolor(cls, color_maps: list[dict], src: Path, dst: Path):
@@ -167,9 +169,9 @@ class XManifest:
 @dataclass
 class CursorMeta:
     name: str
-    resize: str = 'none' # ^(bilinear)|(nearest)|(none)$
-    hotX: float = 0.0    # [0.0, 1.0]
-    hotY: float = 0.0    # [0.0, 1.0]
+    resize: str = 'none'  # ^(bilinear)|(nearest)|(none)$
+    hotX: float = 0.0  # [0.0, 1.0]
+    hotY: float = 0.0  # [0.0, 1.0]
     overrides: list[str] = field(default_factory=list)
     sizes: list[tuple] = field(default_factory=list)
     renders: list[tuple[Path, str, int]] = field(default_factory=list)
@@ -182,21 +184,22 @@ class CursorMeta:
 
         if self.overrides:
             lines.append('')
-            for item in self.overrides:
-                lines.append(f'define_override = {item}')
+            lines.extend(f'define_override = {x}' for x in self.overrides)
 
         if self.sizes:
             lines.append('')
-            for item in self.sizes:
-                lines.append('define_size = {}'.format(', '.join([str(x) for x in item])))
+            lines.extend(
+                'define_size = {}'.format(', '.join([str(x) for x in item]))
+                for item in self.sizes
+            )
 
         return '\n'.join(lines)
 
     def dumpsX(self):
         lines = []
         for item in self.sizes:
-            size, dst = item[0], item[1]
-            delay = item[2] if len(item) == 3 else 0
+            size, dst, delay = (item + (0,))[:3]
+
             hotX = int(size * self.hotX)
             hotY = int(size * self.hotY)
 
@@ -236,13 +239,15 @@ class CursorMeta:
         if fmt == 'hypr':
             Utils.zip_dir(Path(dirPath), Path(dirPath + '.hlc'))
         elif fmt == 'x11':
-            Utils.run(['xcursorgen', '-p', dirPath, f'{dirPath}/meta.x11', f'{dirPath}.xcur'],
-                      True,
-                      stdout=subprocess.DEVNULL)
+            Utils.run(
+                ['xcursorgen', '-p', dirPath, f'{dirPath}/meta.x11', f'{dirPath}.xcur'],
+                wait=True,
+                stdout=subprocess.DEVNULL,
+            )
 
     def post_setup(self, cdir: str = '', fmt: str = 'hypr', link: str = 'none'):
         dirPath = cdir if cdir else self.name
-        Utils.run(['rm', '-rf', dirPath], True)
+        Utils.run(['rm', '-rf', dirPath], wait=True)
         if fmt == 'x11':
             path = Path(f'{dirPath}.xcur').rename(dirPath)
             self.post_x11_symlink(str(path.parent), link)
@@ -254,24 +259,23 @@ class CursorMeta:
                 Path(f'{dirPath}/{name}').symlink_to(self.name)
                 logger.debug(f'symlink: {name} -> {self.name}')
 
-    def scan_size_and_render(self,
-                             refDir: str,
-                             sizes: list[int],
-                             delay: int = 0,
-                             suffix: str = 'svg'):
+    def scan_size_and_render(
+        self, refDir: str, sizes: list[int], delay: int = 0, suffix: str = 'svg'
+    ):
         self.sizes.clear()
         self.renders.clear()
 
-        renderRef: list[Path] = []
-        for path in Utils.traverse_dir(Path(refDir)):
-            if re.fullmatch(f'{self.name}([_-][0-9]+)?', path.stem):
-                renderRef.append(path)
+        renderRef = [
+            path
+            for path in Utils.traverse_dir(Path(refDir))
+            if re.fullmatch(f'{self.name}([_-][0-9]+)?', path.stem)
+        ]
 
         if len(renderRef) == 0:
             logger.warn(f'cursor `{self.name}`: no renderRef')
 
         if suffix == 'svg':
-            sizes = [0] # for hyprcursor with svg, size is ignored
+            sizes = [0]  # for hyprcursor with svg, size is ignored
 
         for size in sizes:
             basename = f'{self.name}_{size}' if size > 0 else self.name
@@ -290,9 +294,9 @@ class CursorMeta:
 
 
 class CursorBuilder:
-    theme: dict[str, dict]        # cursor theme, color map
-    config: dict[str, dict]       # left cursor
-    config_right: dict[str, dict] # right cursor
+    theme: dict[str, dict]  # cursor theme, color map
+    config: dict[str, dict]  # left cursor
+    config_right: dict[str, dict]  # right cursor
 
     doSetup: bool = True
     renderList: list[str] = DEFAULT_THEMES
@@ -305,38 +309,43 @@ class CursorBuilder:
     def parse_args(self, argv: list[str]) -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             prog='cursor_utils',
-            description='utils to create hypr/X cursor for bibata cursor themes')
+            description='utils to create hypr/X cursor for bibata cursor themes',
+        )
 
         parser.add_argument('--no-setup', help='skip post setup', action='store_true')
         parser.add_argument('--hypr', help='build hypr cursor theme', action='store_true')
         parser.add_argument('--x11', help='build x11 cursor theme', action='store_true')
 
-        parser.add_argument('--x11-symlink',
-                            help='symlink policy for x11 cursor theme',
-                            choices=XCURSOR_LINK_MAP.keys(),
-                            default='adwaita')
-        parser.add_argument('--theme',
-                            help='which theme to build, ref: `render.json`',
-                            default='')
+        parser.add_argument(
+            '--x11-symlink',
+            help='symlink policy for x11 cursor theme',
+            choices=XCURSOR_LINK_MAP.keys(),
+            default='adwaita',
+        )
+        parser.add_argument(
+            '--theme', help='which theme to build, ref: `render.json`', default=''
+        )
         parser.add_argument('--out-dir', help='output dir', default='./out')
-        parser.add_argument('--log-level',
-                            help='change log level',
-                            choices=['error', 'warn', 'info', 'debug'],
-                            default='info')
+        parser.add_argument(
+            '--log-level',
+            help='change log level',
+            choices=['error', 'warn', 'info', 'debug'],
+            default='info',
+        )
 
         return parser.parse_args(argv)
 
     def load_config(self):
-        with open('build.toml', 'rb') as f:
+        with Path('build.toml').open('rb') as f:
             self.config = tomllib.load(f)
 
-        with open('build.right.toml', 'rb') as f:
+        with Path('build.right.toml').open('rb') as f:
             self.config_right = tomllib.load(f)
 
-        with open('render.json', 'r') as f:
+        with Path('render.json').open('rb') as f:
             self.theme = json.load(f)
 
-    def get_cursor_config(self, right: bool = False) -> tuple[dict, dict]:
+    def get_cursor_config(self, *, right: bool = False) -> tuple[dict, dict]:
         config = self.config_right if right else self.config
         return (config['cursors'], config['cursor_defaults'])
 
@@ -348,12 +357,14 @@ class CursorBuilder:
             spec = self.theme[name]
 
             if not Path(spec['dir']).exists():
-                Utils.run('cd svg && ./link.py', True)
+                Utils.run('cd svg && ./link.py', wait=True)
 
             yield CursorRender(name, spec['desc'], spec['dir'], spec['colors'])
 
     def get_cursors(self, render: CursorRender, fmt: str = 'hypr') -> Iterable[CursorMeta]:
-        cursor_configs, fallback = self.get_cursor_config(render.name.endswith('-Right'))
+        cursor_configs, fallback = self.get_cursor_config(
+            right=render.name.endswith('-Right')
+        )
 
         if 'x11_name' in fallback:
             logger.warn('fallback has x11_name: {}'.format(fallback.pop('x11_name')))
@@ -376,8 +387,9 @@ class CursorBuilder:
             x11_delay = getValue(params, 'x11_delay', 0)
 
             cursor = CursorMeta(name=x11_name, hotX=hotX, hotY=hotY, overrides=x11_symlinks)
-            cursor.scan_size_and_render(render.dir, x11_sizes, x11_delay,
-                                        'svg' if fmt == 'hypr' else 'png')
+            cursor.scan_size_and_render(
+                render.dir, x11_sizes, x11_delay, 'svg' if fmt == 'hypr' else 'png'
+            )
             yield cursor
 
     def gen_cursor(self, render: CursorRender, fmt: str = 'hypr'):

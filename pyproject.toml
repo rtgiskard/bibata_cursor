@@ -9,37 +9,38 @@ dependencies = []
 indent-width = 4
 line-length = 94
 
-[tool.ruff.lint]
-select = [	## ref: https://beta.ruff.rs/docs/rules/
-	"E",	# pycodestyle Error
-	"W",	# pycodestyle Warning
-	"I",	# isort
-	"F",	# Pyflakes
-	"A",	# flake8-builtins
-	"B",	# flake8-bugbear
-	"Q",	# flake8-quotes
-	"C4",	# flake8-comprehensions
-	"COM",	# flake8-commas
-	"SIM",	# flake8-simplify
-]
-ignore = [	## ref: https://pep8.readthedocs.io/en/release-1.7.x/intro.html#error-codes
-	"E266", # too many leading ‘#’ for block comment
-	"E731", # do not assign a lambda expression, use a def
-	"I001", # Import block is un-sorted or un-formatted
-	"COM812", # Trailing comma missing
+exclude = [
+	".git",
+	".venv",
 ]
 
-[tool.ruff.lint.flake8-quotes]
-inline-quotes = "single"
-multiline-quotes = "single"
-docstring-quotes = "single"
+[tool.ruff.lint]
+## ref: https://docs.astral.sh/ruff/rules/
+select = [
+	"E",		# pycodestyle Error
+	"W",		# pycodestyle Warning
+	"I",		# isort
+	"F",		# Pyflakes
+	"A",		# flake8-builtins
+	"B",		# flake8-bugbear
+	"C4",		# flake8-comprehensions
+	"COM",		# flake8-commas
+	"SIM",		# flake8-simplify
+	"FBT",		# flake8-boolean-trap
+	"PTH",		# flake8-use-pathlib
+	"ASYNC",	# flake8-async
+	"PERF",		# Perflint
+	"FURB",		# refurb
+	"UP",		# pyupgrade
+	"PL",		# Pylint
+]
+ignore = [
+	"E266", 	# too many leading ‘#’ for block comment
+	"E731", 	# do not assign a lambda expression, use a def
+	"I001", 	# Import block is un-sorted or un-formatted
+	"COM812",	# Trailing comma missing
+]
 
 [tool.ruff.format]
 quote-style = "single"
 line-ending = "lf"
-
-[tool.yapf]
-based_on_style = "pep8"
-column_limit = 94
-spaces_before_comment = "20,25"
-#spaces_before_comment = 4
