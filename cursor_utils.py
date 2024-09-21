@@ -184,13 +184,14 @@ class CursorMeta:
 
         if self.overrides:
             lines.append('')
-            for item in self.overrides:
-                lines.append(f'define_override = {item}')
+            lines.extend(f'define_override = {x}' for x in self.overrides)
 
         if self.sizes:
             lines.append('')
-            for item in self.sizes:
-                lines.append('define_size = {}'.format(', '.join([str(x) for x in item])))
+            lines.extend(
+                'define_size = {}'.format(', '.join([str(x) for x in item]))
+                for item in self.sizes
+            )
 
         return '\n'.join(lines)
 
@@ -264,10 +265,11 @@ class CursorMeta:
         self.sizes.clear()
         self.renders.clear()
 
-        renderRef: list[Path] = []
-        for path in Utils.traverse_dir(Path(refDir)):
-            if re.fullmatch(f'{self.name}([_-][0-9]+)?', path.stem):
-                renderRef.append(path)
+        renderRef = [
+            path
+            for path in Utils.traverse_dir(Path(refDir))
+            if re.fullmatch(f'{self.name}([_-][0-9]+)?', path.stem)
+        ]
 
         if len(renderRef) == 0:
             logger.warn(f'cursor `{self.name}`: no renderRef')
