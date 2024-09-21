@@ -44,19 +44,21 @@ XCURSOR_LINK_MAP = {
         'top_left_arrow', 'top_left_corner', 'top_right_corner', 'top_side', 'vertical-text',
         'w-resize', 'wait', 'watch', 'xterm', 'zoom-in', 'zoom-out'
     ],
-}
+}  # fmt: skip
 
 
 class Utils:
-
     @classmethod
     def config_logging(cls, loglevel: int = logging.DEBUG):
         console_handler = logging.StreamHandler()
         console_handler.setLevel(loglevel)
         console_handler.setFormatter(
-            logging.Formatter(fmt='{asctime}.{msecs:03.0f} {levelname[0]}: {message}',
-                              style='{',
-                              datefmt='%H%M%S'))
+            logging.Formatter(
+                fmt='{asctime}.{msecs:03.0f} {levelname[0]}: {message}',
+                style='{',
+                datefmt='%H%M%S',
+            )
+        )
 
         logger = logging.getLogger()
         logger.setLevel(loglevel)
@@ -167,9 +169,9 @@ class XManifest:
 @dataclass
 class CursorMeta:
     name: str
-    resize: str = 'none' # ^(bilinear)|(nearest)|(none)$
-    hotX: float = 0.0    # [0.0, 1.0]
-    hotY: float = 0.0    # [0.0, 1.0]
+    resize: str = 'none'  # ^(bilinear)|(nearest)|(none)$
+    hotX: float = 0.0  # [0.0, 1.0]
+    hotY: float = 0.0  # [0.0, 1.0]
     overrides: list[str] = field(default_factory=list)
     sizes: list[tuple] = field(default_factory=list)
     renders: list[tuple[Path, str, int]] = field(default_factory=list)
@@ -236,9 +238,11 @@ class CursorMeta:
         if fmt == 'hypr':
             Utils.zip_dir(Path(dirPath), Path(dirPath + '.hlc'))
         elif fmt == 'x11':
-            Utils.run(['xcursorgen', '-p', dirPath, f'{dirPath}/meta.x11', f'{dirPath}.xcur'],
-                      True,
-                      stdout=subprocess.DEVNULL)
+            Utils.run(
+                ['xcursorgen', '-p', dirPath, f'{dirPath}/meta.x11', f'{dirPath}.xcur'],
+                True,
+                stdout=subprocess.DEVNULL,
+            )
 
     def post_setup(self, cdir: str = '', fmt: str = 'hypr', link: str = 'none'):
         dirPath = cdir if cdir else self.name
@@ -254,11 +258,9 @@ class CursorMeta:
                 Path(f'{dirPath}/{name}').symlink_to(self.name)
                 logger.debug(f'symlink: {name} -> {self.name}')
 
-    def scan_size_and_render(self,
-                             refDir: str,
-                             sizes: list[int],
-                             delay: int = 0,
-                             suffix: str = 'svg'):
+    def scan_size_and_render(
+        self, refDir: str, sizes: list[int], delay: int = 0, suffix: str = 'svg'
+    ):
         self.sizes.clear()
         self.renders.clear()
 
@@ -271,7 +273,7 @@ class CursorMeta:
             logger.warn(f'cursor `{self.name}`: no renderRef')
 
         if suffix == 'svg':
-            sizes = [0] # for hyprcursor with svg, size is ignored
+            sizes = [0]  # for hyprcursor with svg, size is ignored
 
         for size in sizes:
             basename = f'{self.name}_{size}' if size > 0 else self.name
@@ -290,9 +292,9 @@ class CursorMeta:
 
 
 class CursorBuilder:
-    theme: dict[str, dict]        # cursor theme, color map
-    config: dict[str, dict]       # left cursor
-    config_right: dict[str, dict] # right cursor
+    theme: dict[str, dict]  # cursor theme, color map
+    config: dict[str, dict]  # left cursor
+    config_right: dict[str, dict]  # right cursor
 
     doSetup: bool = True
     renderList: list[str] = DEFAULT_THEMES
@@ -305,24 +307,29 @@ class CursorBuilder:
     def parse_args(self, argv: list[str]) -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             prog='cursor_utils',
-            description='utils to create hypr/X cursor for bibata cursor themes')
+            description='utils to create hypr/X cursor for bibata cursor themes',
+        )
 
         parser.add_argument('--no-setup', help='skip post setup', action='store_true')
         parser.add_argument('--hypr', help='build hypr cursor theme', action='store_true')
         parser.add_argument('--x11', help='build x11 cursor theme', action='store_true')
 
-        parser.add_argument('--x11-symlink',
-                            help='symlink policy for x11 cursor theme',
-                            choices=XCURSOR_LINK_MAP.keys(),
-                            default='adwaita')
-        parser.add_argument('--theme',
-                            help='which theme to build, ref: `render.json`',
-                            default='')
+        parser.add_argument(
+            '--x11-symlink',
+            help='symlink policy for x11 cursor theme',
+            choices=XCURSOR_LINK_MAP.keys(),
+            default='adwaita',
+        )
+        parser.add_argument(
+            '--theme', help='which theme to build, ref: `render.json`', default=''
+        )
         parser.add_argument('--out-dir', help='output dir', default='./out')
-        parser.add_argument('--log-level',
-                            help='change log level',
-                            choices=['error', 'warn', 'info', 'debug'],
-                            default='info')
+        parser.add_argument(
+            '--log-level',
+            help='change log level',
+            choices=['error', 'warn', 'info', 'debug'],
+            default='info',
+        )
 
         return parser.parse_args(argv)
 
@@ -376,8 +383,9 @@ class CursorBuilder:
             x11_delay = getValue(params, 'x11_delay', 0)
 
             cursor = CursorMeta(name=x11_name, hotX=hotX, hotY=hotY, overrides=x11_symlinks)
-            cursor.scan_size_and_render(render.dir, x11_sizes, x11_delay,
-                                        'svg' if fmt == 'hypr' else 'png')
+            cursor.scan_size_and_render(
+                render.dir, x11_sizes, x11_delay, 'svg' if fmt == 'hypr' else 'png'
+            )
             yield cursor
 
     def gen_cursor(self, render: CursorRender, fmt: str = 'hypr'):
