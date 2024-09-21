@@ -198,8 +198,8 @@ class CursorMeta:
     def dumpsX(self):
         lines = []
         for item in self.sizes:
-            size, dst = item[0], item[1]
-            delay = item[2] if len(item) == 3 else 0
+            size, dst, delay = (item + (0,))[:3]
+
             hotX = int(size * self.hotX)
             hotY = int(size * self.hotY)
 
