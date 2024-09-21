@@ -65,7 +65,7 @@ class Utils:
         logger.addHandler(console_handler)
 
     @classmethod
-    def run(cls, cmd: str | list[str], wait: bool = False, **kwargs) -> subprocess.Popen:
+    def run(cls, cmd: str | list[str], *, wait: bool = False, **kwargs) -> subprocess.Popen:
         p = subprocess.Popen(cmd, shell=isinstance(cmd, str), **kwargs)
         if p and wait:
             p.wait()
@@ -103,7 +103,7 @@ class Utils:
             cmd.extend(['-h', str(height)])
 
         cmd.extend(['-o', str(dst), str(src)])
-        cls.run(cmd, True)
+        cls.run(cmd, wait=True)
 
     @classmethod
     def svg_recolor(cls, color_maps: list[dict], src: Path, dst: Path):
@@ -240,13 +240,13 @@ class CursorMeta:
         elif fmt == 'x11':
             Utils.run(
                 ['xcursorgen', '-p', dirPath, f'{dirPath}/meta.x11', f'{dirPath}.xcur'],
-                True,
+                wait=True,
                 stdout=subprocess.DEVNULL,
             )
 
     def post_setup(self, cdir: str = '', fmt: str = 'hypr', link: str = 'none'):
         dirPath = cdir if cdir else self.name
-        Utils.run(['rm', '-rf', dirPath], True)
+        Utils.run(['rm', '-rf', dirPath], wait=True)
         if fmt == 'x11':
             path = Path(f'{dirPath}.xcur').rename(dirPath)
             self.post_x11_symlink(str(path.parent), link)
@@ -343,7 +343,7 @@ class CursorBuilder:
         with open('render.json', 'r') as f:
             self.theme = json.load(f)
 
-    def get_cursor_config(self, right: bool = False) -> tuple[dict, dict]:
+    def get_cursor_config(self, *, right: bool = False) -> tuple[dict, dict]:
         config = self.config_right if right else self.config
         return (config['cursors'], config['cursor_defaults'])
 
@@ -355,12 +355,14 @@ class CursorBuilder:
             spec = self.theme[name]
 
             if not Path(spec['dir']).exists():
-                Utils.run('cd svg && ./link.py', True)
+                Utils.run('cd svg && ./link.py', wait=True)
 
             yield CursorRender(name, spec['desc'], spec['dir'], spec['colors'])
 
     def get_cursors(self, render: CursorRender, fmt: str = 'hypr') -> Iterable[CursorMeta]:
-        cursor_configs, fallback = self.get_cursor_config(render.name.endswith('-Right'))
+        cursor_configs, fallback = self.get_cursor_config(
+            right=render.name.endswith('-Right')
+        )
 
         if 'x11_name' in fallback:
             logger.warn('fallback has x11_name: {}'.format(fallback.pop('x11_name')))
