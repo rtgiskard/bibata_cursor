@@ -22,7 +22,7 @@ but focused on the support for hyprcursor and Xcursor only.
 +
 ```bash
 # 1. install the dependencies 
-# for archlinux archlinux:
+# for archlinux:
 pacman -Syu python librsvg xorg-xcursorgen
 # or Fedora
 dnf install librsvg2-tools xcursorgen
