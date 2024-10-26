@@ -232,7 +232,7 @@ class CursorMeta:
                 Utils.svg_convert(tmp, dst, size, size)
                 tmp.unlink()
             else:
-                logger.warn(f'cursor `{self.name}`: undefined render suffix: {dst}')
+                logger.warning(f'cursor `{self.name}`: undefined render suffix: {dst}')
 
     def post_process(self, cdir: str = '', fmt: str = 'hypr'):
         dirPath = cdir if cdir else self.name
@@ -272,7 +272,7 @@ class CursorMeta:
         ]
 
         if len(renderRef) == 0:
-            logger.warn(f'cursor `{self.name}`: no renderRef')
+            logger.warning(f'cursor `{self.name}`: no renderRef')
 
         if suffix == 'svg':
             sizes = [0]  # for hyprcursor with svg, size is ignored
@@ -367,7 +367,7 @@ class CursorBuilder:
         )
 
         if 'x11_name' in fallback:
-            logger.warn('fallback has x11_name: {}'.format(fallback.pop('x11_name')))
+            logger.warning('fallback has x11_name: {}'.format(fallback.pop('x11_name')))
 
         def getValue(params: dict, key: str, default: Any):
             return params[key] if key in params else fallback.get(key, default)
