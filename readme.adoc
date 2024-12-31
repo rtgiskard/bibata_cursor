@@ -21,8 +21,9 @@ but focused on the support for hyprcursor and Xcursor only.
 - Quick start
 +
 ```bash
-# 1. install the dependencies, archlinux for example
-pacman -Syu python librsvg xorg-xcursorgen
+# 1. install the dependencies 
+# Arch Linux:  pacman -Syu python librsvg xorg-xcursorgen
+# Fedora: dnf install librsvg2-tools xcursorgen
 
 # 2. clone
 git clone https://github.com/rtgiskard/bibata_cursor
