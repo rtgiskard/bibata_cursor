@@ -48,15 +48,15 @@ jobs:
 
       - name: Build hyprcursor
         run: |
-          uv run ./cursor_utils.py --hypr --log-level debug --out-dir out.hypr
-          cd out.hypr && for x in *; do \
+          uv run ./src/cursor_utils.py --hypr --log-level debug --out-dir out.hypr
+          cd out.hypr && for x in Bibata-*; do \
               tar -acf ../"${x}.hypr.tar.zst" "$x"; \
           done
 
       - name: Build Xcursor
         run: |
-          uv run ./cursor_utils.py --x11 --log-level debug --out-dir out.x11
-          cd out.x11 && for x in *; do \
+          uv run ./src/cursor_utils.py --x11 --log-level debug --out-dir out.x11
+          cd out.x11 && for x in Bibata-*; do \
               tar -acf ../"${x}.x11.tar.zst" "$x"; \
           done
 
