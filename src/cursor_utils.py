@@ -49,7 +49,7 @@ XCURSOR_LINK_MAP = {
 
 class Utils:
     @classmethod
-    def config_logging(cls, loglevel: int = logging.DEBUG):
+    def config_logging(cls, loglevel: int | str = logging.DEBUG):
         console_handler = logging.StreamHandler()
         console_handler.setLevel(loglevel)
         console_handler.setFormatter(
@@ -115,6 +115,22 @@ class Utils:
             dst.parent.mkdir(parents=True, exist_ok=True)
 
         dst.write_text(svg_data)
+
+    @classmethod
+    def gen_res_symlinks(cls, dst_dir: str, src_dirs: list[str], src_prefix=''):
+        dst = Path(dst_dir)
+        if not dst.is_dir():
+            dst.mkdir(parents=True)
+
+        logger.info(f'symlink for `{dst_dir}`:')
+        for src_dir in src_dirs:
+            for item in Path(src_prefix + src_dir).iterdir():
+                link = dst / item.name
+                if link.exists():
+                    link.unlink()
+
+                logger.debug(f'-> {link.name} ..')
+                link.symlink_to(item.relative_to(dst, walk_up=True))
 
 
 @dataclass
@@ -294,6 +310,7 @@ class CursorMeta:
 
 
 class CursorBuilder:
+    res_symlink: dict[str, list]  # resource symlink map
     theme: dict[str, dict]  # cursor theme, color map
     config: dict[str, dict]  # left cursor
     config_right: dict[str, dict]  # right cursor
@@ -303,7 +320,7 @@ class CursorBuilder:
     x11Symlink: str = 'none'
     outDir: str = 'out'
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.load_config()
 
     def parse_args(self, argv: list[str]) -> argparse.Namespace:
@@ -336,13 +353,16 @@ class CursorBuilder:
         return parser.parse_args(argv)
 
     def load_config(self):
-        with Path('build.toml').open('rb') as f:
+        with Path('./config/build.toml').open('rb') as f:
             self.config = tomllib.load(f)
 
-        with Path('build.right.toml').open('rb') as f:
+        with Path('./config/build.right.toml').open('rb') as f:
             self.config_right = tomllib.load(f)
 
-        with Path('render.json').open('rb') as f:
+        with Path('./svg/symlink.toml').open('rb') as f:
+            self.res_symlink = tomllib.load(f)
+
+        with Path('./config/render.json').open('rb') as f:
             self.theme = json.load(f)
 
     def get_cursor_config(self, *, right: bool = False) -> tuple[dict, dict]:
@@ -355,11 +375,13 @@ class CursorBuilder:
                 continue
 
             spec = self.theme[name]
+            res_dir = f'{self.outDir}/{spec["dir"]}'
 
-            if not Path(spec['dir']).exists():
-                Utils.run('cd svg && ./link.py', wait=True)
+            if not Path(res_dir).exists():
+                dir_name = spec['dir'].split('/')[-1]
+                Utils.gen_res_symlinks(res_dir, self.res_symlink[dir_name], src_prefix='svg/')
 
-            yield CursorRender(name, spec['desc'], spec['dir'], spec['colors'])
+            yield CursorRender(name, spec['desc'], res_dir, spec['colors'])
 
     def get_cursors(self, render: CursorRender, fmt: str = 'hypr') -> Iterable[CursorMeta]:
         cursor_configs, fallback = self.get_cursor_config(
@@ -422,7 +444,7 @@ class CursorBuilder:
             print(f'** failed to parse args: {e}')
             return
 
-        Utils.config_logging(logging.getLevelName(args.log_level.upper()))
+        Utils.config_logging(args.log_level.upper())
 
         self.doSetup = not args.no_setup
         self.x11Symlink = args.x11_symlink
