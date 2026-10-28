@@ -17,6 +17,7 @@ from pathlib import Path
 logger = logging.getLogger()
 
 SVG_NOMINAL_SIZE = 256
+ANIMATED_FRAME_FIELDS = 3
 
 DEFAULT_THEMES = [
     'Bibata-Modern-Classic',
@@ -108,7 +109,7 @@ class Utils:
         cls.run(cmd, wait=True)
 
     @classmethod
-    def svg_recolor(cls, color_maps: list[dict], src: Path, dst: Path):
+    def svg_recolor(cls, color_maps: list[dict[str, str]], src: Path, dst: Path):
         svg_data = src.read_text()
         for cmap in color_maps:
             svg_data = svg_data.replace(cmap['match'], cmap['replace'])
@@ -159,7 +160,7 @@ class HyprManifest:
         return '\n'.join(lines)
 
     def write(self, cdir: str = ''):
-        dirPath = cdir if cdir else self.name
+        dirPath = cdir or self.name
         Path(f'{dirPath}/{self.directory}').mkdir(parents=True, exist_ok=True)
         Path(f'{dirPath}/manifest.hl').write_text(self.dumps())
 
@@ -179,7 +180,7 @@ class XManifest:
         return '\n'.join(lines)
 
     def write(self, cdir: str = ''):
-        dirPath = cdir if cdir else self.name
+        dirPath = cdir or self.name
         Path(f'{dirPath}/{self.directory}').mkdir(parents=True, exist_ok=True)
         Path(f'{dirPath}/index.theme').write_text(self.dumps())
 
@@ -191,7 +192,7 @@ class CursorMeta:
     hotX: float = 0.0  # [0.0, 1.0]
     hotY: float = 0.0  # [0.0, 1.0]
     overrides: list[str] = field(default_factory=list)
-    sizes: list[tuple] = field(default_factory=list)
+    sizes: list[tuple[int, str] | tuple[int, str, int]] = field(default_factory=list)
     renders: list[tuple[Path, str, int]] = field(default_factory=list)
 
     def dumps(self):
@@ -216,7 +217,8 @@ class CursorMeta:
     def dumpsX(self):
         lines = []
         for item in self.sizes:
-            size, dst, delay = (item + (0,))[:3]
+            size, dst = item[:2]
+            delay = item[2] if len(item) == ANIMATED_FRAME_FIELDS else 0
 
             hotX = int(size * self.hotX)
             hotY = int(size * self.hotY)
@@ -231,7 +233,8 @@ class CursorMeta:
     def dumps_svg(self):
         frames = []
         for item in self.sizes:
-            _, filename, delay = (item + (0,))[:3]
+            _, filename = item[:2]
+            delay = item[2] if len(item) == ANIMATED_FRAME_FIELDS else 0
             frames.append(
                 {
                     'filename': filename,
@@ -244,7 +247,7 @@ class CursorMeta:
         return json.dumps(frames, indent=2) + '\n'
 
     def write(self, cdir: str = '', fmt: str = 'hypr'):
-        dirPath = cdir if cdir else self.name
+        dirPath = cdir or self.name
         Path(dirPath).mkdir(exist_ok=True)
 
         if fmt == 'hypr':
@@ -255,7 +258,7 @@ class CursorMeta:
             Path(f'{dirPath}/metadata.json').write_text(self.dumps_svg())
 
     def render(self, render: CursorRender, cdir: str = ''):
-        dirPath = cdir if cdir else self.name
+        dirPath = cdir or self.name
         for src, basename, size in self.renders:
             dst = Path(f'{dirPath}/{basename}')
 
@@ -270,7 +273,7 @@ class CursorMeta:
                 logger.warning(f'cursor `{self.name}`: undefined render suffix: {dst}')
 
     def post_process(self, cdir: str = '', fmt: str = 'hypr'):
-        dirPath = cdir if cdir else self.name
+        dirPath = cdir or self.name
         if fmt == 'hypr':
             Utils.zip_dir(Path(dirPath), Path(dirPath + '.hlc'))
         elif fmt == 'x11':
@@ -281,7 +284,7 @@ class CursorMeta:
             )
 
     def post_setup(self, cdir: str = '', fmt: str = 'hypr', link: str = 'none'):
-        dirPath = cdir if cdir else self.name
+        dirPath = cdir or self.name
         if fmt == 'svg':
             self.post_symlink(str(Path(dirPath).parent), 'all')
         else:
@@ -291,7 +294,7 @@ class CursorMeta:
                 self.post_symlink(str(path.parent), link)
 
     def post_symlink(self, cdir: str, link: str):
-        dirPath = cdir if cdir else '.'
+        dirPath = cdir or '.'
         for name in self.overrides:
             if link == 'all' or name in XCURSOR_LINK_MAP[link]:
                 Path(f'{dirPath}/{name}').symlink_to(self.name)
@@ -333,10 +336,10 @@ class CursorMeta:
 
 
 class CursorBuilder:
-    res_symlink: dict[str, list]  # resource symlink map
-    theme: dict[str, dict]  # cursor theme, color map
-    config: dict[str, dict]  # left cursor
-    config_right: dict[str, dict]  # right cursor
+    res_symlink: dict[str, list[str]]  # resource symlink map
+    theme: dict[str, dict[str, Any]]  # cursor theme, color map
+    config: dict[str, Any]  # left cursor, parsed TOML sections
+    config_right: dict[str, Any]  # right cursor, parsed TOML sections
 
     doSetup: bool = True
     renderList: list[str] = DEFAULT_THEMES
@@ -389,7 +392,9 @@ class CursorBuilder:
         with Path('./config/render.json').open('rb') as f:
             self.theme = json.load(f)
 
-    def get_cursor_config(self, *, right: bool = False) -> tuple[dict, dict]:
+    def get_cursor_config(
+        self, *, right: bool = False
+    ) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
         config = self.config_right if right else self.config
         return (config['cursors'], config['cursor_defaults'])
 
@@ -415,7 +420,7 @@ class CursorBuilder:
         if 'x11_name' in fallback:
             logger.warning('fallback has x11_name: {}'.format(fallback.pop('x11_name')))
 
-        def getValue(params: dict, key: str, default: Any):
+        def getValue(params: dict[str, Any], key: str, default: Any):
             return params[key] if key in params else fallback.get(key, default)
 
         for name, params in cursor_configs.items():
