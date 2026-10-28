@@ -61,6 +61,9 @@ cp -r ./out/Bibata-* ~/.local/share/icons/
 ./src/cursor_utils.py --svg --x11 --theme Bibata-Modern-Classic --out-dir ./out
 ```
 
+Unknown themes, missing format flags and existing output directories are rejected
+with an error on stderr and exit status `2`, without modifying the output directory.
+
 
 == Scalable SVG / niri
 

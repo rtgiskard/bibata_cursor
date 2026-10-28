@@ -463,12 +463,8 @@ class CursorBuilder:
         for render in self.get_renders():
             self.gen_cursor(render, fmt)
 
-    def run(self, argv: list[str]):
-        try:
-            args = self.parse_args(argv)
-        except Exception as e:
-            print(f'** failed to parse args: {e}')
-            return
+    def run(self, argv: list[str]) -> int:
+        args = self.parse_args(argv)
 
         Utils.config_logging(args.log_level.upper())
 
@@ -478,14 +474,17 @@ class CursorBuilder:
 
         if Path(self.outDir).exists():
             logger.error(f'output dir `{self.outDir}` already exist, abort')
-            return
+            return 2
 
         if args.theme:
+            if args.theme not in self.theme:
+                logger.error(f'unknown theme `{args.theme}`')
+                return 2
             self.renderList = [args.theme]
 
         if not args.svg and not args.hypr and not args.x11:
             logger.error('require at least one of `svg`, `hypr` or `x11`')
-            return
+            return 2
 
         if args.svg:
             self.build('svg')
@@ -493,8 +492,9 @@ class CursorBuilder:
             self.build('hypr')
         if args.x11:
             self.build('x11')
+        return 0
 
 
 if __name__ == '__main__':
     builder = CursorBuilder()
-    builder.run(sys.argv[1:] or ['-h'])
+    sys.exit(builder.run(sys.argv[1:] or ['-h']))
