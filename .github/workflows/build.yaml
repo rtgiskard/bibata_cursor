@@ -29,17 +29,12 @@ jobs:
 
       - name: Install dependences
         run: |
-          pacman --noconfirm --noprogressbar -Syyu
-          pacman --noconfirm --noprogressbar -Sy \
+          pacman --noconfirm --noprogressbar -Syu --needed \
             xorg-xcursorgen librsvg \
-            ruff python-pipx
+            ruff uv
 
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Python dependences
-        run: |
-          pipx install uv pytest
-          uv sync
+      - name: Sync Python environment
+        run: uv sync
 
       - name: Check with linter and formatter
         run: |
