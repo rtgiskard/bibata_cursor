@@ -16,6 +16,8 @@ from pathlib import Path
 
 logger = logging.getLogger()
 
+SVG_NOMINAL_SIZE = 256
+
 DEFAULT_THEMES = [
     'Bibata-Modern-Classic',
     'Bibata-Modern-Ice',
@@ -130,7 +132,7 @@ class Utils:
                     link.unlink()
 
                 logger.debug(f'-> {link.name} ..')
-                link.symlink_to(item.relative_to(dst, walk_up=True))
+                link.symlink_to(item.absolute().relative_to(dst.absolute(), walk_up=True))
 
 
 @dataclass
@@ -226,6 +228,21 @@ class CursorMeta:
 
         return '\n'.join(lines)
 
+    def dumps_svg(self):
+        frames = []
+        for item in self.sizes:
+            _, filename, delay = (item + (0,))[:3]
+            frames.append(
+                {
+                    'filename': filename,
+                    'nominal_size': SVG_NOMINAL_SIZE,
+                    'hotspot_x': self.hotX * SVG_NOMINAL_SIZE,
+                    'hotspot_y': self.hotY * SVG_NOMINAL_SIZE,
+                    'delay': delay,
+                }
+            )
+        return json.dumps(frames, indent=2) + '\n'
+
     def write(self, cdir: str = '', fmt: str = 'hypr'):
         dirPath = cdir if cdir else self.name
         Path(dirPath).mkdir(exist_ok=True)
@@ -234,6 +251,8 @@ class CursorMeta:
             Path(f'{dirPath}/meta.hl').write_text(self.dumps())
         elif fmt == 'x11':
             Path(f'{dirPath}/meta.x11').write_text(self.dumpsX())
+        elif fmt == 'svg':
+            Path(f'{dirPath}/metadata.json').write_text(self.dumps_svg())
 
     def render(self, render: CursorRender, cdir: str = ''):
         dirPath = cdir if cdir else self.name
@@ -263,12 +282,15 @@ class CursorMeta:
 
     def post_setup(self, cdir: str = '', fmt: str = 'hypr', link: str = 'none'):
         dirPath = cdir if cdir else self.name
-        Utils.run(['rm', '-rf', dirPath], wait=True)
-        if fmt == 'x11':
-            path = Path(f'{dirPath}.xcur').rename(dirPath)
-            self.post_x11_symlink(str(path.parent), link)
+        if fmt == 'svg':
+            self.post_symlink(str(Path(dirPath).parent), 'all')
+        else:
+            Utils.run(['rm', '-rf', dirPath], wait=True)
+            if fmt == 'x11':
+                path = Path(f'{dirPath}.xcur').rename(dirPath)
+                self.post_symlink(str(path.parent), link)
 
-    def post_x11_symlink(self, cdir: str, link: str):
+    def post_symlink(self, cdir: str, link: str):
         dirPath = cdir if cdir else '.'
         for name in self.overrides:
             if link == 'all' or name in XCURSOR_LINK_MAP[link]:
@@ -286,12 +308,13 @@ class CursorMeta:
             for path in Utils.traverse_dir(Path(refDir))
             if re.fullmatch(f'{self.name}([_-][0-9]+)?', path.stem)
         ]
+        renderRef.sort(key=lambda path: int(path.stem[len(self.name) :].lstrip('_-') or 0))
 
         if len(renderRef) == 0:
             logger.warning(f'cursor `{self.name}`: no renderRef')
 
         if suffix == 'svg':
-            sizes = [0]  # for hyprcursor with svg, size is ignored
+            sizes = [0]  # Vector formats retain the original SVG coordinate system.
 
         for size in sizes:
             basename = f'{self.name}_{size}' if size > 0 else self.name
@@ -326,10 +349,11 @@ class CursorBuilder:
     def parse_args(self, argv: list[str]) -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             prog='cursor_utils',
-            description='utils to create hypr/X cursor for bibata cursor themes',
+            description='utils to create scalable SVG/hypr/X cursor themes for bibata',
         )
 
         parser.add_argument('--no-setup', help='skip post setup', action='store_true')
+        parser.add_argument('--svg', help='build scalable SVG cursors', action='store_true')
         parser.add_argument('--hypr', help='build hypr cursor theme', action='store_true')
         parser.add_argument('--x11', help='build x11 cursor theme', action='store_true')
 
@@ -401,8 +425,8 @@ class CursorBuilder:
                 logger.debug(f'skip cursor `{name}`: no x11_name')
                 continue
 
-            hotX = getValue(params, 'x_hotspot', 0) / 256
-            hotY = getValue(params, 'y_hotspot', 0) / 256
+            hotX = getValue(params, 'x_hotspot', 0) / SVG_NOMINAL_SIZE
+            hotY = getValue(params, 'y_hotspot', 0) / SVG_NOMINAL_SIZE
 
             x11_symlinks = getValue(params, 'x11_symlinks', [])
             x11_sizes = getValue(params, 'x11_sizes', [])
@@ -410,7 +434,7 @@ class CursorBuilder:
 
             cursor = CursorMeta(name=x11_name, hotX=hotX, hotY=hotY, overrides=x11_symlinks)
             cursor.scan_size_and_render(
-                render.dir, x11_sizes, x11_delay, 'svg' if fmt == 'hypr' else 'png'
+                render.dir, x11_sizes, x11_delay, 'png' if fmt == 'x11' else 'svg'
             )
             yield cursor
 
@@ -421,6 +445,8 @@ class CursorBuilder:
 
         cThemeDir = f'{self.outDir}/{render.name}'
         manifest = Manifest(name=render.name, description=render.desc)
+        if fmt == 'svg':
+            manifest.directory = 'cursors_scalable'
         manifest.write(cThemeDir)
 
         for cursor in self.get_cursors(render, fmt):
@@ -457,10 +483,12 @@ class CursorBuilder:
         if args.theme:
             self.renderList = [args.theme]
 
-        if not args.hypr and not args.x11:
-            logger.error('requre at least one of `hypr` or `x11`')
+        if not args.svg and not args.hypr and not args.x11:
+            logger.error('require at least one of `svg`, `hypr` or `x11`')
             return
 
+        if args.svg:
+            self.build('svg')
         if args.hypr:
             self.build('hypr')
         if args.x11:

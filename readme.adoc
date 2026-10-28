@@ -7,7 +7,7 @@ This cursor set is a masterpiece of cursors available on the internet,
 hand-designed by https://twitter.com/ful1e5[Abdulkaiz Khatri].
 
 This work is based on https://github.com/ful1e5/Bibata_Cursor[Bibata_Cursor],
-but focused on the support for hyprcursor and Xcursor only.
+but focused on scalable SVG, hyprcursor and Xcursor themes.
 
 
 == Build
@@ -30,7 +30,7 @@ git clone https://github.com/rtgiskard/bibata_cursor
 
 # 3. build
 cd bibata_cursor
-./src/cursor_utils.py --hypr --x11 --out-dir ./out
+./src/cursor_utils.py --svg --hypr --x11 --out-dir ./out
 
 # 4. copy to user local icon theme
 cp -r ./out/Bibata-* ~/.local/share/icons/
@@ -40,9 +40,9 @@ cp -r ./out/Bibata-* ~/.local/share/icons/
 
 1. recolor SVG according to `config/render.json`
 2. parse cursor settings from `config/build.toml`
-3. generating cursor config for hyprcursor or Xcursor
-4. Rendering SVG files to PNG files (Xcursor only)
-5. Building cursor themes from SVG (hyprcursor) or PNG (Xcursor) files.
+3. generate metadata for scalable SVG, hyprcursor or Xcursor
+4. render SVG files to PNG files (Xcursor only)
+5. assemble cursor themes, preserving SVG artwork for the vector formats
 
 
 == Examples
@@ -56,14 +56,45 @@ cp -r ./out/Bibata-* ~/.local/share/icons/
 
 # Generate both hyprcursor and Xcursor for `Bibata-Modern-Classic`:
 ./src/cursor_utils.py --hypr --x11 --theme Bibata-Modern-Classic --out-dir ./out
+
+# Generate scalable SVG and Xcursor together for niri and bitmap-only clients:
+./src/cursor_utils.py --svg --x11 --theme Bibata-Modern-Classic --out-dir ./out
 ```
+
+
+== Scalable SVG / niri
+
+`--svg` generates `cursors_scalable/<cursor-name>/` directories containing
+recolored SVG artwork and `metadata.json`, alongside `index.theme`.
+This format requires only Python to build; neither `rsvg-convert` nor `xcursorgen` is used.
+It can coexist with `hyprcursors/` and `cursors/` in the same theme by combining the build flags.
+
+For niri builds with SVG cursor support, install the generated theme as above and select it:
+
+```kdl
+cursor {
+    theme "Bibata-Modern-Classic"
+    size 24
+}
+```
+
+SVG loading is automatic in these niri builds; `xcursor-fallback true` is needed only
+if niri should also load Xcursor bitmap resources. Generate `--x11` alongside `--svg`
+when applications need the same theme in the traditional bitmap format.
+
+Metadata uses the source artwork's 256-unit nominal size and unrounded hotspot coordinates
+from `config/build.toml` or `config/build.right.toml` for `-Right` themes.
+Animated frames are ordered numerically and use `x11_delay` in milliseconds.
+All configured cursor aliases become relative directory symlinks; `--x11-symlink`
+controls only the Xcursor output.
+
 
 == Customization
 
 === Customize Sizes
 
-Adjust `config/build.toml: cursor_defaults.x11_sizes`, add only sizes you need to shrink the cursor theme size.
-For hyprcursor, it's all vector image, with no need to set a specific size.
+Adjust `config/build.toml: cursor_defaults.x11_sizes`, add only sizes you need to shrink the Xcursor theme size.
+For hyprcursor and scalable SVG, no specific output sizes are needed.
 
 === Customize Colors
 
