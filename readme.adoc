@@ -50,11 +50,8 @@ Omit `--theme` to build the default theme set.
 # Run the utils to check the help:
 ./src/cursor_utils.py -h
 
-# Generate hyprcursor to `./out`:
-./src/cursor_utils.py --hypr --out-dir ./out
-
-# Generate both hyprcursor and Xcursor for `Bibata-Modern-Classic`:
-./src/cursor_utils.py --hypr --x11 --theme Bibata-Modern-Classic --out-dir ./out
+# Generate svg cursor to `./out`:
+./src/cursor_utils.py --svg --out-dir ./out
 
 # Generate scalable SVG and Xcursor together for niri and bitmap-only clients:
 ./src/cursor_utils.py --svg --x11 --theme Bibata-Modern-Classic --out-dir ./out
