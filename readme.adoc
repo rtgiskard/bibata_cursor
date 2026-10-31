@@ -3,27 +3,29 @@
 image:https://github.com/rtgiskard/bibata_cursor/actions/workflows/build.yaml/badge.svg[build]
 image:https://img.shields.io/badge/license-GPLv3-green.svg?style=flat[license]
 
-This cursor set is a masterpiece of cursors available on the internet,
+Bibata cursor themes in scalable SVG, hyprcursor and Xcursor formats.
+Based on https://github.com/ful1e5/Bibata_Cursor[Bibata_Cursor],
 hand-designed by https://twitter.com/ful1e5[Abdulkaiz Khatri].
-
-This work is based on https://github.com/ful1e5/Bibata_Cursor[Bibata_Cursor],
-but focused on scalable SVG, hyprcursor and Xcursor themes.
 
 
 == Build
 
-- Prerequisites
+=== Prerequisites
 
 * Python `>= 3.12`
 * https://wiki.gnome.org/Projects/LibRsvg[librsvg]: generating PNG files (Xcursor only)
-* https://xorg.freedesktop.org[xorg-xcursorgen]: generating Xcursor from PNG and related (Xcursor only)
+* https://xorg.freedesktop.org[xorg-xcursorgen]: compiling PNG files into Xcursor resources (Xcursor only)
 
-- Quick start
-+
-```bash
+=== Quick Start
+
+Run build commands from the repository root. The output directory must not already
+exist; choose a new `--out-dir` when rebuilding.
+
+[source,bash]
+----
 # 1. install the dependencies
 # Arch Linux:  pacman -Syu python librsvg xorg-xcursorgen
-# Fedora: dnf install librsvg2-tools xcursorgen
+# Fedora: dnf install python3 librsvg2-tools xcursorgen
 
 # 2. clone
 git clone https://github.com/rtgiskard/bibata_cursor
@@ -33,21 +35,18 @@ cd bibata_cursor
 ./src/cursor_utils.py --svg --hypr --x11 --out-dir ./out
 
 # 4. copy to user local icon theme
+mkdir -p ~/.local/share/icons
 cp -r ./out/Bibata-* ~/.local/share/icons/
-```
-
-- The process of creating the cursor themes:
-
-1. recolor SVG according to `config/render.json`
-2. parse cursor settings from `config/build.toml`
-3. generate metadata for scalable SVG, hyprcursor or Xcursor
-4. render SVG files to PNG files (Xcursor only)
-5. assemble cursor themes, preserving SVG artwork for the vector formats
-
+----
 
 == Examples
 
-```bash
+The following build commands are alternatives, not sequential steps.
+Combine format flags to generate multiple formats in the same theme.
+Omit `--theme` to build the default theme set.
+
+[source,bash]
+----
 # Run the utils to check the help:
 ./src/cursor_utils.py -h
 
@@ -59,10 +58,19 @@ cp -r ./out/Bibata-* ~/.local/share/icons/
 
 # Generate scalable SVG and Xcursor together for niri and bitmap-only clients:
 ./src/cursor_utils.py --svg --x11 --theme Bibata-Modern-Classic --out-dir ./out
-```
+----
 
 Unknown themes, missing format flags and existing output directories are rejected
 with an error on stderr and exit status `2`, without modifying the output directory.
+
+
+== How It Works
+
+1. recolor SVG according to `config/render.json`
+2. parse cursor settings from `config/build.toml` (`config/build.right.toml` for `-Right` themes)
+3. generate metadata for scalable SVG, hyprcursor or Xcursor
+4. render SVG files to PNG files (Xcursor only)
+5. assemble cursor themes, preserving SVG artwork for the vector formats
 
 
 == Scalable SVG / niri
@@ -72,14 +80,15 @@ recolored SVG artwork and `metadata.json`, alongside `index.theme`.
 This format requires only Python to build; neither `rsvg-convert` nor `xcursorgen` is used.
 It can coexist with `hyprcursors/` and `cursors/` in the same theme by combining the build flags.
 
-For niri builds with SVG cursor support, install the generated theme as above and select it:
+For https://github.com/rtgiskard/niri[niri builds with SVG cursor support], install the generated theme as above and select it:
 
-```kdl
+[source,kdl]
+----
 cursor {
     theme "Bibata-Modern-Classic"
     size 24
 }
-```
+----
 
 SVG loading is automatic in these niri builds; `xcursor-fallback true` is needed only
 if niri should also load Xcursor bitmap resources. Generate `--x11` alongside `--svg`
@@ -96,24 +105,35 @@ controls only the Xcursor output.
 
 === Customize Sizes
 
-Adjust `config/build.toml: cursor_defaults.x11_sizes`, add only sizes you need to shrink the Xcursor theme size.
+Set `cursor_defaults.x11_sizes` in `config/build.toml`, or in
+`config/build.right.toml` for `-Right` themes. Keep only the sizes you need to
+reduce the Xcursor theme size. Individual cursor sections can override this list
+with `x11_sizes`.
 For hyprcursor and scalable SVG, no specific output sizes are needed.
 
 === Customize Colors
 
-Adjust `config/render.json: colors.replace`, tweak the colors as you like:
+In `config/render.json`, find the target theme and edit the `replace` values in its
+`colors` array. Each `match` value identifies a source color:
 
-1. Base color: which replaces the `#00FF00` color in the SVG.
-2. Outlined color: which replaces the `#0000FF` color in the SVG.
-3. Watch Background color: which replaces the `#FF0000` color in the SVG.
+* `#00FF00`: base color.
+* `#0000FF`: outline color.
+* `#FF0000`: watch background color.
 
-=== Use bibata.live
+For example, this entry under `Bibata-Modern-Classic` sets the base color to black:
 
-https://bibata.live simplifies the personalization of cursor themes, making it easy and accessible for users.
-With bibata, you can enhance your cursor experience effortlessly. Best of all, it's available for free, allowing you to
-enjoy a customized bibata cursor theme tailored to your preferences.
+[source,json]
+----
+{ "match": "#00FF00", "replace": "#000000" }
+----
 
-More docs can be find on https://github.com/ful1e5/Bibata_Cursor[upstream].
+Rebuild the theme into a new output directory to apply your changes.
+
+=== External Resources
+
+https://bibata.live[bibata.live] provides an online cursor customization tool.
+
+More documentation is available https://github.com/ful1e5/Bibata_Cursor[upstream].
 
 
 == License
